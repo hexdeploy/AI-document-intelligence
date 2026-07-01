@@ -1,0 +1,15 @@
+# Ignore local python compilation files
+__pycache__/
+*.pyc
+
+# 🎯 CRITICAL: Ignore your virtual environment completely
+venv/
+.venv/
+env/
+
+# Ignore your temporary vector storage maps
+storage/
+vector_stores/
+
+# Ignore local environment variable files
+.env
