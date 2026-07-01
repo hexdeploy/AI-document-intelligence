@@ -126,7 +126,7 @@ async def index_document(request: Request, file: UploadFile = File(...), api_key
             else:
                 vector_db.add_documents(current_batch)
             if i + batch_size < total_chunks:
-                time.sleep(4)
+                time.sleep(5)
 
         vector_db.save_local(doc_store_path)
         return {"status": "success", "filename": filename, "total_chunks": total_chunks}
