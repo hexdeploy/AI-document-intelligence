@@ -13,3 +13,6 @@ vector_stores/
 
 # Ignore local environment variable files
 .env
+
+# Ignore local Streamlit configurations and secrets
+.streamlit/
