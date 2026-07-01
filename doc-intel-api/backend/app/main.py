@@ -37,7 +37,7 @@ API_KEY_NAME = "X-API-Key"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
 # This is the master password required by the frontend to talk to your backend
-MASTER_API_KEY = "super_secure_portfolio_token_2026"
+MASTER_API_KEY = os.getenv("X_API_KEY", "fallback_local_key_for_dev")
 
 async def verify_api_key(api_key: str = Depends(api_key_header)):
     if not api_key or api_key != MASTER_API_KEY:
