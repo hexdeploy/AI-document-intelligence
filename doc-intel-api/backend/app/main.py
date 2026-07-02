@@ -7,7 +7,7 @@ from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy.orm import Session
-import database, models  # This connects main.py to your new files
+from . import database, models  # This connects main.py to your new files
 
 # Core text processing & vector storage
 from pypdf import PdfReader
