@@ -9,7 +9,7 @@ st.set_page_config(page_title="Enterprise Document Intelligence Workspace", layo
 FASTAPI_URL = os.getenv("BACKEND_API_URL") or st.secrets.get("BACKEND_API_URL", "http://127.0.0.1:8000")
 
 # 🔑 Grab the master security token from Streamlit environments
-API_KEY = os.getenv("X_API_KEY") or st.secrets.get("X_API_KEY", "")
+API_KEY = "super_secure_portfolio_token_2026"
 
 # 📦 Package authentication headers for FastAPI validation check
 HEADERS = {
