@@ -6,6 +6,8 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Security,
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 from typing import List, Optional
+from sqlalchemy.orm import Session
+import database, models  # This connects main.py to your new files
 
 # Core text processing & vector storage
 from pypdf import PdfReader
@@ -19,6 +21,9 @@ from google import genai
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+
+# Automatically build your PostgreSQL tables on Render if they don't exist yet
+models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(title="Production Document Intelligence API", version="4.0.0")
 logger = logging.getLogger("uvicorn.error")
@@ -80,10 +85,15 @@ async def list_documents(api_key: str = Depends(verify_api_key)):
     dirs = [d for d in os.listdir(STORAGE_DIR) if os.path.isdir(os.path.join(STORAGE_DIR, d))]
     return {"documents": dirs}
 
-# 3. Secured & Rate-Limited Document Upload Indexing
+# 3. Secured & Rate-Limited Document Upload Indexing (With Database Logging)
 @app.post("/api/index-document")
 @limiter.limit("5/minute")  #  Prevents API Key resource exhaustion
-async def index_document(request: Request, file: UploadFile = File(...), api_key: str = Depends(verify_api_key)):
+async def index_document(
+    request: Request, 
+    file: UploadFile = File(...), 
+    api_key: str = Depends(verify_api_key),
+    db: Session = Depends(database.get_db) # 🔌 Injects your database pipeline
+):
     try:
         contents = await file.read()
         file_size_mb = len(contents) / (1024 * 1024)
@@ -93,18 +103,23 @@ async def index_document(request: Request, file: UploadFile = File(...), api_key
         
         documents: List[Document] = []
         filename = file.filename
+        full_extracted_preview = ""
         
         if filename.endswith(".txt"):
             text = contents.decode("utf-8")
+            full_extracted_preview = text
             documents.append(Document(page_content=text, metadata={"page": 1, "source": filename}))
             
         elif filename.endswith(".pdf"):
             pdf_stream = io.BytesIO(contents)
             pdf_reader = PdfReader(pdf_stream)
+            extracted_pages_content = []
             for page_num, page in enumerate(pdf_reader.pages, start=1):
                 page_text = page.extract_text()
                 if page_text and page_text.strip():
+                    extracted_pages_content.append(page_text)
                     documents.append(Document(page_content=page_text, metadata={"page": page_num, "source": filename}))
+            full_extracted_preview = "\n".join(extracted_pages_content)
         else:
             raise HTTPException(status_code=400, detail="Unsupported file format.")
 
@@ -129,11 +144,29 @@ async def index_document(request: Request, file: UploadFile = File(...), api_key
                 time.sleep(5)
 
         vector_db.save_local(doc_store_path)
+
+        # 💾 LOG SUCCESS ENTRY TO POSTGRESQL DATABASE
+        new_log = models.DocumentLog(
+            filename=filename,
+            summary=full_extracted_preview[:200],  # Saves the first 200 characters as metadata preview
+            status="SUCCESS"
+        )
+        db.add(new_log)
+        db.commit()
+
         return {"status": "success", "filename": filename, "total_chunks": total_chunks}
 
     except HTTPException as he:
+        # 💾 LOG ROUTE FAILURE STAGE
+        failed_log = models.DocumentLog(filename=file.filename, summary=str(he.detail)[:200], status="FAILED")
+        db.add(failed_log)
+        db.commit()
         raise he
     except Exception as e:
+        # 💾 LOG SYSTEM CRASH STAGE
+        failed_log = models.DocumentLog(filename=file.filename, summary=str(e)[:200], status="FAILED")
+        db.add(failed_log)
+        db.commit()
         raise HTTPException(status_code=500, detail=f"Indexing processing crash: {str(e)}")
 
 # 4. Secured & Rate-Limited Document AI Chat Room

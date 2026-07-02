@@ -9,3 +9,5 @@ faiss-cpu==1.8.0.post1
 google-genai>=0.2.0
 langchain-core==0.2.0
 slowapi==0.1.9
+sqlalchemy
+psycopg2-binary
